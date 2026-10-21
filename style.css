@@ -1,0 +1,189 @@
+:root {
+  --bg: #12263a;
+  --bg-deep: #0b1827;
+  --paper: #f5f7fa;
+  --pink: #ff3d8b;
+  --yellow: #ffd23f;
+  --mint: #3ddc97;
+  --muted: #8fa5bb;
+  --display: Impact, "Arial Black", "Helvetica Neue", sans-serif;
+  --body: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--paper);
+  font-family: var(--body);
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+body { cursor: crosshair; user-select: none; -webkit-user-select: none; }
+
+/* HUD */
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 20px;
+  font-size: 1rem;
+  color: var(--muted);
+  z-index: 5;
+  pointer-events: none;
+}
+#hud b { color: var(--yellow); font-family: var(--display); font-size: 1.5rem; font-weight: 400; letter-spacing: .03em; }
+
+/* Screens */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  background: rgba(11, 24, 39, .94);
+  z-index: 20;
+}
+.screen.hidden { display: none; }
+
+.screen h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 9vw, 6rem);
+  line-height: .95;
+  margin: 0 0 18px;
+  letter-spacing: .01em;
+  transform: rotate(-2deg);
+}
+.screen p { max-width: 34rem; margin: 0 0 28px; font-size: 1.1rem; line-height: 1.5; color: var(--muted); }
+.screen .stat { font-family: var(--display); font-size: clamp(3.5rem, 14vw, 8rem); color: var(--yellow); margin: 0 0 6px; line-height: 1; }
+.screen .verdict { color: var(--paper); font-size: 1.3rem; font-style: italic; }
+.screen .small { font-size: .95rem; margin-bottom: 28px; }
+
+.big-btn {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  letter-spacing: .04em;
+  padding: 14px 40px;
+  border: 3px solid var(--paper);
+  background: var(--yellow);
+  color: var(--bg-deep);
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 var(--pink);
+  transition: transform .1s, box-shadow .1s;
+}
+.big-btn:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--pink); }
+.big-btn:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--pink); }
+.big-btn:focus-visible, #target:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
+
+/* The elusive button */
+#target {
+  position: fixed;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  font-family: var(--display);
+  font-size: 1.4rem;
+  letter-spacing: .04em;
+  padding: 14px 34px;
+  border: 3px solid var(--paper);
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--paper);
+  cursor: pointer;
+  box-shadow: 0 5px 0 #b01a58;
+  transition: left .18s cubic-bezier(.3, 1.6, .6, 1), top .18s cubic-bezier(.3, 1.6, .6, 1), opacity .2s, scale .2s;
+  white-space: nowrap;
+}
+#target.vanish { opacity: 0; pointer-events: none; }
+#target.tired { background: var(--mint); color: var(--bg-deep); box-shadow: 0 5px 0 #1f9c68; animation: wobble 1s infinite; }
+#target.hidden { display: none; }
+
+@keyframes wobble {
+  0%, 100% { rotate: -4deg; }
+  50% { rotate: 4deg; }
+}
+
+/* Decoys */
+.decoy {
+  position: fixed;
+  z-index: 9;
+  transform: translate(-50%, -50%);
+  font-family: var(--display);
+  font-size: 1.2rem;
+  padding: 12px 28px;
+  border: 3px solid var(--paper);
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--paper);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: pop .25s ease-out;
+}
+
+/* Monsters */
+.monster {
+  position: fixed;
+  z-index: 8;
+  font-size: 3rem;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: left 1.2s ease-in-out, top 1.2s ease-in-out;
+  animation: pop .3s ease-out;
+  filter: drop-shadow(0 4px 0 rgba(0, 0, 0, .35));
+}
+.monster.dead { animation: squish .3s forwards; pointer-events: none; }
+
+@keyframes pop { from { scale: 0; } to { scale: 1; } }
+@keyframes squish { to { scale: 1.6 .1; opacity: 0; } }
+
+/* Taunt bubble */
+#taunt {
+  position: fixed;
+  z-index: 15;
+  max-width: 260px;
+  padding: 10px 16px;
+  background: var(--yellow);
+  color: var(--bg-deep);
+  font-weight: bold;
+  font-size: 1rem;
+  border: 3px solid var(--bg-deep);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .4);
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  opacity: 0;
+  transition: opacity .15s;
+}
+#taunt.show { opacity: 1; }
+
+/* Ticker at bottom */
+#status {
+  position: fixed;
+  bottom: 14px; left: 0; right: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: .95rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #target, .monster { transition: none; }
+  #target.tired { animation: none; }
+}
+
+@media (max-width: 520px) {
+  #hud { padding: 10px 14px; font-size: .85rem; }
+  .monster { font-size: 2.4rem; }
+}

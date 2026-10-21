@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Click the Button (You Can’t)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="hud">
+    <span>Time <b id="time">0.0</b>s</span>
+    <span>Dodges <b id="dodges">0</b></span>
+    <span>Monsters squished <b id="squished">0</b></span>
+  </div>
+
+  <div id="status"></div>
+
+  <section class="screen" id="startScreen">
+    <h1>Click<br>the button.</h1>
+    <p>That’s the whole game. One button, one click. The button has other plans, and it brought friends.</p>
+    <button class="big-btn" id="startBtn">Start the clock</button>
+  </section>
+
+  <section class="screen hidden" id="endScreen">
+    <p class="small">You finally clicked it in</p>
+    <div class="stat"><span id="finalTime">0.0</span>s</div>
+    <p class="verdict" id="verdict"></p>
+    <p class="small" id="summary"></p>
+    <button class="big-btn" id="againBtn">Try again</button>
+  </section>
+
+  <button id="target" class="hidden">CLICK ME</button>
+  <div id="taunt"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const target = $('target'), taunt = $('taunt'), status = $('status');
+
+    // ---------- Copy ----------
+    const dodgeTaunts = [
+      "You're slower than my grandmother!",
+      "Is that your final speed?",
+      "Nope!",
+      "Too slow, slowpoke.",
+      "My grandmother clicks faster, and she's a toaster.",
+      "Were you aiming at me? Cute.",
+      "Almost! Not really.",
+      "Have you considered a different hobby?",
+      "Ha! Missed me.",
+      "Did your mouse fall asleep?",
+      "I've seen glaciers with better reflexes.",
+      "Try using both hands.",
+      "Bless your heart. Keep trying.",
+      "That was embarrassing. For you."
+    ];
+    const missTaunts = [
+      "You clicked the empty air. Bold strategy.",
+      "That's just the background. Wow.",
+      "Missed by a mile.",
+      "Even the wall is laughing."
+    ];
+    const monsterTaunts = [
+      "Meet my bodyguards!",
+      "Sic 'em, boys!",
+      "Surprise! Monsters!",
+      "Cursor, meet your roadblock."
+    ];
+    const decoyTaunts = [
+      "Ha! That one was a fake.",
+      "Fooled you. Again.",
+      "Real button? Never heard of her."
+    ];
+    const verdicts = [
+      [8,   "Suspiciously fast. Were you cheating?"],
+      [20,  "Respectable. My grandmother would still beat you."],
+      [40,  "Not great, not terrible. Mostly terrible."],
+      [75,  "Well, you got there eventually. Like a snail with a map."],
+      [Infinity, "I almost fell asleep. Congratulations on your persistence."]
+    ];
+    const monsterEmoji = ['👹', '👻', '🦇', '🕷️', '🧟', '👾', '🐙'];
+
+    // ---------- State ----------
+    let playing = false, startTime = 0, dodges = 0, squished = 0;
+    let mouse = { x: innerWidth / 2, y: innerHeight / 2 };
+    let timerId, monsterId, lastTaunt = 0, lastDodge = 0, tauntTimer, vanishing = false;
+    let decoys = [], monsters = [];
+
+    const TIRED_AT = 30; // after this many dodges the button gives up
+
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const dist = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
+
+    function btnCenter() {
+      const r = target.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+
+    function say(text, x, y, force) {
+      const now = Date.now();
+      if (!force && now - lastTaunt < 900) return;
+      lastTaunt = now;
+      taunt.textContent = text;
+      const w = Math.min(260, innerWidth - 20);
+      taunt.style.left = Math.max(w / 2 + 10, Math.min(innerWidth - w / 2 - 10, x)) + 'px';
+      taunt.style.top = Math.max(50, Math.min(innerHeight - 90, y)) + 'px';
+      taunt.classList.add('show');
+      clearTimeout(tauntTimer);
+      tauntTimer = setTimeout(() => taunt.classList.remove('show'), 1800);
+    }
+
+    // ---------- Movement ----------
+    function randomSpot(awayFrom, minDist) {
+      const mx = 90, my = 80;
+      for (let i = 0; i < 40; i++) {
+        const x = rand(mx, innerWidth - mx), y = rand(my + 20, innerHeight - my);
+        if (dist(x, y, awayFrom.x, awayFrom.y) >= minDist) return { x, y };
+      }
+      return { x: rand(mx, innerWidth - mx), y: rand(my + 20, innerHeight - my) };
+    }
+
+    function moveTo(x, y) {
+      target.style.left = x + 'px';
+      target.style.top = y + 'px';
+    }
+
+    function dodge() {
+      const now = Date.now();
+      if (now - lastDodge < 120) return;
+      lastDodge = now;
+      dodges++;
+      $('dodges').textContent = dodges;
+
+      const c = btnCenter();
+      const spot = randomSpot(mouse, Math.min(260, innerWidth * 0.4));
+      moveTo(spot.x, spot.y);
+      say(pick(dodgeTaunts), c.x, c.y - 60);
+
+      // Escalation
+      if (dodges === 6) status.textContent = "The button is getting cocky…";
+      if (dodges >= 8 && Math.random() < 0.3) vanishFor(900);
+      if (dodges >= 12 && Math.random() < 0.35) spawnDecoy();
+      if (dodges >= 5 && Math.random() < 0.2) target.style.scale = String(rand(0.55, 1.2).toFixed(2));
+      if (dodges === TIRED_AT) giveUp();
+    }
+
+    function vanishFor(ms) {
+      if (vanishing) return;
+      vanishing = true;
+      target.classList.add('vanish');
+      setTimeout(() => { target.classList.remove('vanish'); vanishing = false; }, ms);
+    }
+
+    function giveUp() {
+      target.classList.add('tired');
+      target.textContent = "I'm tired…";
+      target.style.scale = '1';
+      status.textContent = "The button is exhausted. Now's your chance!";
+      clearInterval(monsterId);
+      clearDecoys();
+      say("Ugh. I'm out of breath…", btnCenter().x, btnCenter().y - 60, true);
+    }
+
+    function isTired() { return dodges >= TIRED_AT; }
+
+    // Dodge when the cursor gets close
+    function onMove(e) {
+      mouse.x = e.clientX; mouse.y = e.clientY;
+      if (!playing || vanishing) return;
+      const c = btnCenter();
+      const radius = isTired() ? 0 : Math.min(120, 70 + dodges * 3);
+      if (radius && dist(mouse.x, mouse.y, c.x, c.y) < radius) dodge();
+    }
+    document.addEventListener('pointermove', onMove);
+
+    // Touch screens: dodge on touch-down near the button
+    document.addEventListener('pointerdown', (e) => {
+      if (!playing || e.pointerType === 'mouse' || isTired()) return;
+      mouse.x = e.clientX; mouse.y = e.clientY;
+      const c = btnCenter();
+      if (dist(mouse.x, mouse.y, c.x, c.y) < 110 && Math.random() < 0.85) dodge();
+    });
+
+    // ---------- Decoys & monsters ----------
+    function spawnDecoy() {
+      if (decoys.length >= 3) return;
+      const p = randomSpot(mouse, 150);
+      const d = document.createElement('button');
+      d.className = 'decoy';
+      d.textContent = 'CLICK ME';
+      d.style.left = p.x + 'px';
+      d.style.top = p.y + 'px';
+      d.addEventListener('click', (e) => {
+        e.stopPropagation();
+        say(pick(decoyTaunts), p.x, p.y - 60, true);
+        d.remove();
+        decoys = decoys.filter(x => x !== d);
+      });
+      document.body.appendChild(d);
+      decoys.push(d);
+    }
+    function clearDecoys() { decoys.forEach(d => d.remove()); decoys = []; }
+
+    function spawnMonster() {
+      if (!playing || monsters.length >= 7) return;
+      const c = btnCenter();
+      const m = document.createElement('div');
+      m.className = 'monster';
+      m.textContent = pick(monsterEmoji);
+      m.style.left = c.x + rand(-60, 60) + 'px';
+      m.style.top = c.y + rand(-60, 60) + 'px';
+      m.addEventListener('click', (e) => {
+        e.stopPropagation();
+        squished++;
+        $('squished').textContent = squished;
+        m.classList.add('dead');
+        monsters = monsters.filter(x => x !== m);
+        setTimeout(() => m.remove(), 300);
+      });
+      document.body.appendChild(m);
+      monsters.push(m);
+      if (monsters.length === 1) say(pick(monsterTaunts), c.x, c.y - 70, true);
+    }
+
+    // Monsters drift toward the gap between cursor and button to block the way
+    function patrolMonsters() {
+      if (!playing) return;
+      const c = btnCenter();
+      monsters.forEach((m, i) => {
+        const t = rand(0.25, 0.75);
+        const bx = mouse.x + (c.x - mouse.x) * t + rand(-50, 50);
+        const by = mouse.y + (c.y - mouse.y) * t + rand(-50, 50);
+        m.style.left = Math.max(30, Math.min(innerWidth - 30, bx)) + 'px';
+        m.style.top = Math.max(60, Math.min(innerHeight - 30, by)) + 'px';
+      });
+    }
+
+    function clearMonsters() { monsters.forEach(m => m.remove()); monsters = []; }
+
+    // ---------- Game flow ----------
+    function startGame() {
+      playing = true; dodges = 0; squished = 0; vanishing = false;
+      $('dodges').textContent = 0; $('squished').textContent = 0;
+      target.classList.remove('tired', 'vanish');
+      target.textContent = 'CLICK ME';
+      target.style.scale = '1';
+      status.textContent = "Go on. Click it.";
+      moveTo(innerWidth / 2, innerHeight / 2);
+      $('startScreen').classList.add('hidden');
+      $('endScreen').classList.add('hidden');
+      target.classList.remove('hidden');
+      startTime = performance.now();
+      timerId = setInterval(() => {
+        $('time').textContent = ((performance.now() - startTime) / 1000).toFixed(1);
+      }, 100);
+      // Monsters join the fight after a few dodges
+      monsterId = setInterval(() => {
+        if (dodges >= 10 && !isTired()) { spawnMonster(); }
+        patrolMonsters();
+      }, 1300);
+    }
+
+    function winGame() {
+      if (!playing) return;
+      playing = false;
+      const secs = (performance.now() - startTime) / 1000;
+      clearInterval(timerId); clearInterval(monsterId);
+      clearMonsters(); clearDecoys();
+      taunt.classList.remove('show');
+      target.classList.add('hidden');
+      status.textContent = '';
+      $('finalTime').textContent = secs.toFixed(1);
+      $('verdict').textContent = verdicts.find(v => secs < v[0])[1];
+      $('summary').textContent = `${dodges} dodges. ${squished} monsters squished.` +
+        (dodges >= TIRED_AT ? " The button only gave up because it was out of breath." : "");
+      $('endScreen').classList.remove('hidden');
+    }
+
+    target.addEventListener('click', (e) => { e.stopPropagation(); winGame(); });
+
+    // Clicking empty space gets you mocked
+    document.addEventListener('click', (e) => {
+      if (!playing || e.target.closest('.screen')) return;
+      say(pick(missTaunts), e.clientX, e.clientY - 60);
+    });
+
+    $('startBtn').addEventListener('click', startGame);
+    $('againBtn').addEventListener('click', startGame);
+
+    addEventListener('resize', () => { if (playing) moveTo(innerWidth / 2, innerHeight / 2); });
+  </script>
+</body>
+</html>
